@@ -2473,7 +2473,7 @@ export interface Config {
 
 - `inject`: `sessionProjections`
 - `refs`: [`SandboxMode`](subsystems/sandbox.md)
-- `source`: [`packages/sandbox/sandbox-policy/src/index.ts:71`](../packages/sandbox/sandbox-policy/src/index.ts)
+- `source`: [`packages/sandbox/sandbox-policy/src/index.ts:91`](../packages/sandbox/sandbox-policy/src/index.ts)
 
 ```ts config-catalog
 /**
@@ -2491,6 +2491,14 @@ export interface Config {
    * `process.cwd()`). Normal agent calls use their session cwd instead.
    */
   workspaceRoot?: string
+  /**
+   * Suffixes appended to the workspace root's own path, each naming a
+   * companion directory `workspace-write` may also write under (default:
+   * none). `.worktrees` grants `/repos/app.worktrees` to a session rooted at
+   * `/repos/app`. An entry carrying a path separator is refused at load, so a
+   * grant can only ever name a sibling of the workspace.
+   */
+  siblingWritableSuffixes?: string[]
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-sandbox-policy -->

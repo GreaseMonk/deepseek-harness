@@ -32,6 +32,19 @@ import type {} from '@deepseek-ai/dsh-system-prompt'
 
 export { SANDBOX_MODES, setSandboxMode } from './session-mode.ts'
 
+/**
+ * Accept one companion-root suffix, refusing anything that could name a path
+ * outside the workspace's own parent.
+ * @param suffix - the configured suffix appended to the workspace root.
+ * @returns the suffix unchanged when it names a sibling.
+ */
+function assertSiblingSuffix(suffix: string): string {
+  if (suffix.length === 0 || suffix.includes('/') || suffix.includes('\\')) {
+    throw new Error(`sandboxPolicy.siblingWritableSuffixes entries must be non-empty and free of path separators; received ${JSON.stringify(suffix)}`)
+  }
+  return suffix
+}
+
 /** Preserve execution-world spelling; enforcing providers resolve filesystem identity on their host. */
 function resolveWorkspaceRoot(path: string): string {
   if (!isAbsolute(path)) throw new Error('sandbox-policy: workspace root must be an absolute execution-world path')
@@ -43,8 +56,15 @@ function renderPolicyContext(policy: SandboxExecutionPolicy): string {
   switch (policy.mode) {
     case 'read-only':
       return 'Current DSH file policy: read-only. Any available operation enforced by the DSH file sandbox cannot modify files in the standing mode. Do not refuse a required modification from this policy alone: try an available tool normally and follow any denial and escalation guidance it returns.'
-    case 'workspace-write':
-      return `Current DSH file policy: workspace-write. Any available operation enforced by the DSH file sandbox may modify files under the session workspace: ${JSON.stringify(policy.workspaceRoot)}. Some platform temporary areas may also be writable.`
+    case 'workspace-write': {
+      // The companion sentence appears only when roots were resolved, so a
+      // deployment that configures none reads exactly as before.
+      const companions = policy.extraWritableRoots ?? []
+      const alongside = companions.length === 0
+        ? ''
+        : ` Files under these companion directories are writable too: ${companions.map(root => JSON.stringify(root)).join(', ')}.`
+      return `Current DSH file policy: workspace-write. Any available operation enforced by the DSH file sandbox may modify files under the session workspace: ${JSON.stringify(policy.workspaceRoot)}.${alongside} Some platform temporary areas may also be writable.`
+    }
     case 'danger-full-access':
       return 'Current DSH file policy: danger-full-access. The DSH file sandbox does not restrict file modifications by available operations.'
     /* v8 ignore next 4 -- SandboxMode is a typed same-process closed union; this branch is only the static exhaustiveness guard. */
@@ -76,6 +96,14 @@ export interface Config {
    * `process.cwd()`). Normal agent calls use their session cwd instead.
    */
   workspaceRoot?: string
+  /**
+   * Suffixes appended to the workspace root's own path, each naming a
+   * companion directory `workspace-write` may also write under (default:
+   * none). `.worktrees` grants `/repos/app.worktrees` to a session rooted at
+   * `/repos/app`. An entry carrying a path separator is refused at load, so a
+   * grant can only ever name a sibling of the workspace.
+   */
+  siblingWritableSuffixes?: string[]
 }
 
 /** Inputs that select the sandbox policy for one capability call. */
@@ -114,6 +142,7 @@ export class SandboxPolicyService extends Service {
     // No schema default: process.cwd() is resolved in the constructor so the
     // stored root is always absolute regardless of how it was supplied.
     workspaceRoot: z.string(),
+    siblingWritableSuffixes: z.array(z.string()).default([]),
   })
 
   static inject = ['sessionProjections']
@@ -122,6 +151,8 @@ export class SandboxPolicyService extends Service {
   readonly defaultMode: SandboxMode
   /** The absolute `workspace-write` fallback root for calls without a session cwd. */
   readonly workspaceRoot: string
+  /** Suffixes naming the companion roots granted beside each resolved workspace. */
+  readonly siblingWritableSuffixes: readonly string[]
   constructor(ctx: Context, config: Config) {
     super(ctx, 'sandboxPolicy')
     // schemastery (static Config) already filled `mode`; the cast records that
@@ -129,6 +160,7 @@ export class SandboxPolicyService extends Service {
     // the process cwd is real branching, resolved absolute either way.
     this.defaultMode = config.mode as SandboxMode
     this.workspaceRoot = resolveWorkspaceRoot(config.workspaceRoot ?? process.cwd())
+    this.siblingWritableSuffixes = (config.siblingWritableSuffixes as string[]).map(assertSiblingSuffix)
 
     ctx.sessionProjections.register({
       key: 'sandboxMode',
@@ -163,9 +195,15 @@ export class SandboxPolicyService extends Service {
    */
   resolve(request: SandboxPolicyRequest = {}): SandboxExecutionPolicy {
     const { session } = request
+    // Companion roots share the workspace's execution-world spelling; enforcing
+    // providers resolve both to filesystem identity together.
+    const workspaceRoot = resolveWorkspaceRoot(session?.header.cwd ?? this.workspaceRoot)
     return {
       mode: request.mode ?? (session === undefined ? undefined : this.overrideOf(session)) ?? this.defaultMode,
-      workspaceRoot: resolveWorkspaceRoot(session?.header.cwd ?? this.workspaceRoot),
+      workspaceRoot,
+      ...this.siblingWritableSuffixes.length === 0
+        ? {}
+        : { extraWritableRoots: this.siblingWritableSuffixes.map(suffix => workspaceRoot + suffix) },
       ...session === undefined ? {} : { sessionId: session.id },
     }
   }

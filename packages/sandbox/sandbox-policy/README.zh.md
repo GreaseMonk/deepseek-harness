@@ -46,6 +46,7 @@ kind: "package-reference"
 |---|---|---|
 | `mode` | `read-only` | 会话起始的部署默认模式，加载时验证 |
 | `workspaceRoot` | `process.cwd()` | 无 agent 调用或没有 cwd 的会话所用的绝对回退根目录；相对值在加载时拒绝。普通 agent 调用使用会话的不可变 cwd |
+| `siblingWritableSuffixes` | `[]` | 追加到工作区根目录后的后缀，每个后缀命名一个 `workspace-write` 也可写入的同级目录；`['.worktrees']` 为根目录是 `/repos/app` 的会话授予 `/repos/app.worktrees`。空条目或含路径分隔符的条目在加载时拒绝 |
 
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-sandbox-policy)是每个受支持字段及其 JSDoc 的穷尽式真源。
 

@@ -15,8 +15,22 @@ import SandboxPolicyService, { SANDBOX_MODES, setSandboxMode } from '@deepseek-a
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import SystemPrompt, { renderContextSnapshot, renderPrompt } from '@deepseek-ai/dsh-system-prompt'
 
-async function mounted(config: { mode?: 'read-only' | 'workspace-write' | 'danger-full-access'; workspaceRoot?: string } = {}) {
+interface PolicyConfig {
+  mode?: 'read-only' | 'workspace-write' | 'danger-full-access'
+  workspaceRoot?: string
+  siblingWritableSuffixes?: string[]
+}
+
+async function mounted(config: PolicyConfig = {}) {
   const ctx = new Context()
+  await ctx.plugin(SessionProjectionRegistry)
+  await ctx.plugin(SandboxPolicyService, config)
+  return ctx
+}
+
+async function promptMounted(config: PolicyConfig = {}): Promise<Context> {
+  const ctx = new Context()
+  await ctx.plugin(SystemPrompt)
   await ctx.plugin(SessionProjectionRegistry)
   await ctx.plugin(SandboxPolicyService, config)
   return ctx
@@ -161,14 +175,6 @@ describe('SandboxPolicyService', () => {
 })
 
 describe('sandbox:policy request context', () => {
-  async function promptMounted(config: { mode?: 'read-only' | 'workspace-write' | 'danger-full-access'; workspaceRoot?: string } = {}): Promise<Context> {
-    const ctx = new Context()
-    await ctx.plugin(SystemPrompt)
-    await ctx.plugin(SessionProjectionRegistry)
-    await ctx.plugin(SandboxPolicyService, config)
-    return ctx
-  }
-
   it.each(['read-only', 'workspace-write', 'danger-full-access'] as const)('renders the exact %s policy without a capability inventory', async (mode) => {
     const ctx = await promptMounted({ mode, workspaceRoot: '/fallback' })
     const workspaceRoot = '/projects/../projects/current'
@@ -247,5 +253,46 @@ describe('the sandbox/mode session kit', () => {
     const modeEvents = session.snapshotEvents().filter(e => e.type === 'sandbox/mode')
     expect(modeEvents).toHaveLength(1)
     expect(modeEvents[0]?.data).toEqual({ mode: 'danger-full-access' })
+  })
+})
+
+describe('companion writable roots', () => {
+  it('resolves no companion roots when none are configured', async () => {
+    const ctx = await mounted({ mode: 'workspace-write', workspaceRoot: '/ws' })
+    expect(ctx.sandboxPolicy.resolve().extraWritableRoots).toBeUndefined()
+  })
+
+  it('grants each configured suffix as a sibling of the resolved workspace', async () => {
+    const repo = mkdtempSync(join(tmpdir(), 'dsh-repo-'))
+    const ctx = await mounted({ mode: 'workspace-write', siblingWritableSuffixes: ['.worktrees'] })
+    const policy = ctx.sandboxPolicy.resolve({ session: session('s1', repo) })
+    expect(policy.extraWritableRoots).toEqual([`${repo}.worktrees`])
+  })
+
+  it('hangs the companion root off the workspace spelling the session supplied', async () => {
+    const ctx = await mounted({ mode: 'workspace-write', siblingWritableSuffixes: ['.worktrees'] })
+    const policy = ctx.sandboxPolicy.resolve({ session: session('s2', '/repos/link/app') })
+    expect(policy.extraWritableRoots).toEqual(['/repos/link/app.worktrees'])
+  })
+
+  it('refuses a suffix carrying a path separator at load', async () => {
+    await expect(mounted({ siblingWritableSuffixes: ['../elsewhere'] })).rejects.toThrow(/path separators/)
+  })
+
+  it('refuses an empty suffix at load', async () => {
+    await expect(mounted({ siblingWritableSuffixes: [''] })).rejects.toThrow(/non-empty/)
+  })
+
+  it('names the companion roots in the model-visible policy context', async () => {
+    const repo = mkdtempSync(join(tmpdir(), 'dsh-ctx-'))
+    const ctx = await promptMounted({ mode: 'workspace-write', siblingWritableSuffixes: ['.worktrees'] })
+    const active = session('s3', repo)
+    expect(await policyContext(ctx, active)).toContain(`${repo}.worktrees`)
+  })
+
+  it('leaves the workspace-write context text unchanged when no companion root is configured', async () => {
+    const repo = mkdtempSync(join(tmpdir(), 'dsh-plain-'))
+    const ctx = await promptMounted({ mode: 'workspace-write' })
+    expect(await policyContext(ctx, session('s4', repo))).not.toContain('companion')
   })
 })

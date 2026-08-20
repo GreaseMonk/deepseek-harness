@@ -43,4 +43,23 @@ describe('writableRoots', () => {
     // Deduplicated after canonicalization (/tmp and os.tmpdir() may coincide).
     expect(new Set(writable).size).toBe(writable.length)
   })
+
+  it('workspace-write grants the policy owner\'s companion roots beside the workspace', () => {
+    const ws = mkdtempSync(join(tmpdir(), 'dsh-ws-'))
+    const companion = mkdtempSync(join(tmpdir(), 'dsh-wt-'))
+    const roots = writableRoots({ mode: 'workspace-write', workspaceRoot: ws, extraWritableRoots: [companion] })
+    expect(roots).toContain(realpathSync.native(companion))
+    expect(roots).toContain(realpathSync.native(ws))
+  })
+
+  it('a companion root that does not exist is granted as spelled, so it can still be created', () => {
+    const ws = mkdtempSync(join(tmpdir(), 'dsh-ws-'))
+    const companion = `${ws}.worktrees`
+    expect(writableRoots({ mode: 'workspace-write', workspaceRoot: ws, extraWritableRoots: [companion] }))
+      .toContain(companion)
+  })
+
+  it('read-only grants nothing even with companion roots resolved', () => {
+    expect(writableRoots({ mode: 'read-only', workspaceRoot: '/ws', extraWritableRoots: ['/ws.worktrees'] })).toEqual([])
+  })
 })

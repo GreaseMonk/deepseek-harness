@@ -4,9 +4,22 @@
  * @module @deepseek-ai/dsh-sandbox-local/profiles
  */
 
+import { existsSync } from 'node:fs'
 import { grantArgs as landlockGrantArgs } from '@deepseek-ai/node-addon-system/landlock-run'
 import { writableRoots } from '@deepseek-ai/dsh-sandbox'
 import type { SandboxPolicy } from '@deepseek-ai/dsh-sandbox'
+
+/**
+ * The policy's companion roots that this host can grant right now. A bwrap
+ * `--bind` and the Landlock launcher both fail closed on a path they cannot
+ * open, so a configured companion root joins their grants only once it
+ * exists; Seatbelt matches path strings and needs no such filter.
+ * @param policy - the file-effect policy carrying the companion roots.
+ * @returns the subset of companion roots present on disk.
+ */
+function openableExtraRoots(policy: SandboxPolicy): string[] {
+  return (policy.extraWritableRoots ?? []).filter(root => existsSync(root))
+}
 
 /**
  * Build the bwrap profile arguments for one file-effect policy.
@@ -18,6 +31,7 @@ export function bwrapProfileArgs(policy: SandboxPolicy): string[] {
   if (policy.mode === 'workspace-write') {
     args.push('--tmpfs', '/tmp')
     args.push('--bind', policy.workspaceRoot, policy.workspaceRoot)
+    for (const root of openableExtraRoots(policy)) args.push('--bind', root, root)
   }
   return args
 }
@@ -30,7 +44,7 @@ export function bwrapProfileArgs(policy: SandboxPolicy): string[] {
 export function landlockProfileArgs(policy: SandboxPolicy): string[] {
   const readWrite = ['/dev/null']
   if (policy.mode === 'workspace-write') {
-    readWrite.push('/tmp', policy.workspaceRoot)
+    readWrite.push('/tmp', policy.workspaceRoot, ...openableExtraRoots(policy))
   }
   return landlockGrantArgs({ readOnly: ['/'], readWrite })
 }

@@ -1,0 +1,31 @@
+# Bilingual-pair consistency record for 2026-08-20-sibling-companion-writable-roots.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-20-sibling-companion-writable-roots.md
+/agent-note-companion-writable-roots-granting-a-workspace-s-sibling-worktree-tree-under-workspace-write:
+  en: f8a0de7f26f46a30
+  zh: 826b7167f8b98a99
+/agent-note-companion-writable-roots-granting-a-workspace-s-sibling-worktree-tree-under-workspace-write/problem:
+  en: d0eecef2739dbd79
+  zh: da5c90d65a41f3c3
+/agent-note-companion-writable-roots-granting-a-workspace-s-sibling-worktree-tree-under-workspace-write/decision:
+  en: c33b6d4ea4977dde
+  zh: e24c5c4e39edb31d
+/agent-note-companion-writable-roots-granting-a-workspace-s-sibling-worktree-tree-under-workspace-write/decision/sandboxexecutionpolicy-extrawritableroots:
+  en: bcd6d7634a27ca7b
+  zh: e734590f4de1b4af
+/agent-note-companion-writable-roots-granting-a-workspace-s-sibling-worktree-tree-under-workspace-write/decision/dsh-sandbox-policy-siblingwritablesuffixes:
+  en: 36f639f0d2b165b7
+  zh: b34d883c57dfbaab
+/agent-note-companion-writable-roots-granting-a-workspace-s-sibling-worktree-tree-under-workspace-write/decision/per-runner-grant-spellings:
+  en: 4a85d87395932d12
+  zh: 711f86d90a9ee107
+/agent-note-companion-writable-roots-granting-a-workspace-s-sibling-worktree-tree-under-workspace-write/decision/model-experience:
+  en: 8ef76db903087b40
+  zh: a72c5703fd40d6d4
+/agent-note-companion-writable-roots-granting-a-workspace-s-sibling-worktree-tree-under-workspace-write/alternatives-considered:
+  en: 8f69fd201aa8c507
+  zh: f60be800d62dcb83
+/agent-note-companion-writable-roots-granting-a-workspace-s-sibling-worktree-tree-under-workspace-write/consequences:
+  en: 4831b51bf926d3ac
+  zh: 1800c8afd5322df2

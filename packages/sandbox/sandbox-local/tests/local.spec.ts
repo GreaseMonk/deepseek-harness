@@ -109,6 +109,23 @@ describe('profile dialects', () => {
     expect(seatbeltProfileArgs(WW)).toEqual(['-p', `${SEATBELT_RO_PROFILE} ${allow}`])
   })
 
+  it('bwrap and landlock bind a companion root only once it exists — both fail closed on an unopenable grant', () => {
+    const present = mkdtempSync(join(tmpdir(), 'dsh-companion-'))
+    const policy: SandboxPolicy = { ...WW, extraWritableRoots: [present, '/ws.worktrees'] }
+    expect(bwrapProfileArgs(policy)).toEqual([
+      '--ro-bind', '/', '/', '--dev', '/dev', '--unshare-pid', '--proc', '/proc', '--die-with-parent',
+      '--tmpfs', '/tmp', '--bind', '/ws', '/ws', '--bind', present, present,
+    ])
+    expect(landlockProfileArgs(policy)).toEqual(['--ro', '/', '--rw', '/dev/null', '--rw', '/tmp', '--rw', '/ws', '--rw', present])
+  })
+
+  it('seatbelt grants a companion root whether or not it exists — it matches path strings', () => {
+    const policy: SandboxPolicy = { ...WW, extraWritableRoots: ['/ws.worktrees'] }
+    const roots = [...new Set(['/ws', '/ws.worktrees', realpathSync('/tmp'), realpathSync(tmpdir())])]
+    const allow = `(allow file-write* ${roots.map(root => `(subpath "${root}")`).join(' ')})`
+    expect(seatbeltProfileArgs(policy)).toEqual(['-p', `${SEATBELT_RO_PROFILE} ${allow}`])
+  })
+
   it('seatbelt workspace-write dedups a workspace root that already IS the temp dir', () => {
     const profile = seatbeltProfileArgs({ mode: 'workspace-write', workspaceRoot: tmpdir() })[1] as string
     const grant = `(subpath "${realpathSync(tmpdir())}")`
